@@ -411,7 +411,7 @@ const manager = new (class extends Emitter {
     const def = this.#defs.get(inst.widgetId);
     if (!live || !def || !def.ok || !inst.systemId) return;
     const { state: st, connections, perConn } = deriveState(keys, inst, def.model);
-    reconcilePending(st, live.pending);
+    reconcilePending(st, live.pending, perConn);
     const peers = this.#peersFor(inst, def.model, keys);
     const changed =
       connections !== live.connections ||
@@ -421,6 +421,12 @@ const manager = new (class extends Emitter {
     live.state = st; live.connections = connections; live.perConn = perConn; live.peers = peers;
     const actions = computeActions(def.model, st, live.pending, perConn);
     for (const a of actions) {
+      if (a.connId) {
+        live.pending[a.connId + '|' + a.property] = String(a.value);
+        this.#putConn(inst, def.model, a.property, a.value, a.connId).catch((e) => this.#log('error', `Reply put failed: ${e.message || e}`));
+        this.#log('info', `⚙ ${inst.name}: ${a.property} → "${a.value}" (reply on ${a.connId}).`);
+        continue;
+      }
       this.#put(inst, def.model, a.property, a.value).catch((e) => this.#log('error', `Auto-actualize failed: ${e.message || e}`));
       this.#log('info', `⚙ ${inst.name}: ${a.property} → "${a.value}" (rule).`);
     }

@@ -27,6 +27,8 @@ const ASSETS = [
   "./widgets/oadr-device.yaml",
   "./widgets/occupancy-display.yaml",
   "./widgets/occupancy-sensor.yaml",
+  "./widgets/ping-responder.yaml",
+  "./widgets/ping-sender.yaml",
   "./widgets/propagate-receiver.yaml",
   "./widgets/propagate-sender.yaml",
   "./widgets/switch.yaml",
@@ -34,8 +36,6 @@ const ASSETS = [
   "./widgets/trust-provider.yaml",
   "./widgets/value-display.yaml",
   "./widgets/value-source.yaml"
-  "./widgets/ping-responder.yaml",
-  "./widgets/ping-sender.yaml",
 ];
 
 self.addEventListener('install', (e) => {
