@@ -1,0 +1,34 @@
+# Value Source — provider role of cp:padi.value ("Simple value conveyance").
+# The provider CONVEYS a simple numeric value (required) plus a free-text
+# status; both propagate to the consumer. The consumer's optional source id
+# comes back on this side.
+widget: value-source
+title: Value Source
+description: Provider side of padi.value - conveys a simple numeric value and its status to connected consumers, and shows the optional source id a consumer supplies.
+icon: "📈"
+color: "#4c8bf5"
+
+capabilities:
+  - profile: padi.value
+    role: provider
+
+view:
+  - type: label
+    text: you convey
+  - type: field
+    bind: value
+    caption: value (required)
+  - type: field
+    bind: status
+    caption: status
+  - type: split
+  - type: label
+    text: from the consumer
+  - type: value
+    bind: id
+    caption: consumer id (optional)
+
+behavior:
+  init:
+    value: "0"    # required by the CP; propagated, so bind-safe
+    status: ok

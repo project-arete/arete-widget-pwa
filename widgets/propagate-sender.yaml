@@ -1,0 +1,47 @@
+# Propagate Sender — provider role of cp:padi.test.propagate.
+# Property names carry their PURPOSE; the registry's server/propagate flags
+# carry direction and reach. bulletin is posted to everyone; draft never
+# leaves this node; ping is echoed back by receivers.
+# NOTE: invalid until padi.test.propagate is registered at cp.padi.io (by design).
+widget: propagate-sender
+title: Propagate Sender
+description: Provider side of the propagate test rig - posts a bulletin (propagated), keeps a draft (not propagated), pings receivers, and shows what comes back (and what cannot).
+icon: "📤"
+color: "#3ecf8e"
+
+capabilities:
+  - profile: padi.test.propagate
+    role: provider
+
+view:
+  - type: label
+    text: you write
+  - type: field
+    bind: bulletin
+    caption: bulletin — propagated, receivers see this
+  - type: field
+    bind: draft
+    caption: draft — NOT propagated, never leaves this node
+  - type: stepper
+    bind: ping
+    min: 0
+    caption: ping — receivers auto-echo it
+  - type: split
+  - type: label
+    text: back from receivers
+  - type: value
+    bind: feedback
+    caption: feedback — propagated
+  - type: value
+    bind: echo
+    caption: echo — of your ping
+  - type: label
+    text: (receivers also keep notes — no propagate flag, so they can never appear here)
+
+behavior:
+  init:
+    bulletin: hello everyone
+    ping: "0"
+    # NB: draft deliberately NOT initialized — a non-propagated value existing
+    # at bind time prevents the broker from ever binding (empirical finding,
+    # 2026-07-19). Write it from the faceplate after binding.

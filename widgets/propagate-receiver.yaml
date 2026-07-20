@@ -1,0 +1,46 @@
+# Propagate Receiver — consumer role of cp:padi.test.propagate.
+# Sees ONLY the propagated writes; auto-echoes ping to prove the round trip;
+# keeps its own non-propagated notes (connection-external by contract).
+# NOTE: invalid until padi.test.propagate is registered at cp.padi.io (by design).
+widget: propagate-receiver
+title: Propagate Receiver
+description: Consumer side of the propagate test rig - shows what arrives from the sender (only propagated properties can), echoes ping automatically, and keeps notes of its own that are not part of the connection contract.
+icon: "📥"
+color: "#4c8bf5"
+
+capabilities:
+  - profile: padi.test.propagate
+    role: consumer
+
+view:
+  - type: label
+    text: arriving from the sender
+  - type: value
+    bind: bulletin
+    caption: bulletin — propagated
+  - type: value
+    bind: ping
+    caption: ping
+  - type: label
+    text: (the sender also keeps a draft — no propagate flag, so it never arrives; a bind on it would be refused as a dead read)
+  - type: split
+  - type: label
+    text: you write
+  - type: field
+    bind: feedback
+    caption: feedback — propagated, the sender sees this
+  - type: field
+    bind: notes
+    caption: notes — NOT propagated, never leave this node
+  - type: value
+    bind: echo
+    caption: echo — your automatic reply to ping
+
+behavior:
+  init:
+    feedback: ready
+    # NB: notes deliberately NOT initialized — see the sender's note; write
+    # them from the faceplate after binding.
+  rules:
+    - when: ping
+      set: echo

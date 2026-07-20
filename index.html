@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ws: wss: https://cp.padi.io https://project-arete.github.io; img-src 'self' https: data:; manifest-src 'self'; frame-src 'self';" />
+    <meta name="theme-color" content="#0e1726" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icon-192.png" />
+    <link rel="apple-touch-icon" href="icon-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>Arete Widget</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="widget.css" />
+    <link rel="stylesheet" href="wpwa.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <img class="logo" src="logo.png" alt="Arete" />
+        <div>
+          <h1>Arete Widget</h1>
+          <p class="subtitle">virtual widgets on a CNS/CP realm · <span id="appVersion" title="release version (from package.json)"></span><span id="uiVersion" title="internal UI build stamp"> · PWA v1</span></p>
+        </div>
+      </div>
+      <div class="realm-ind" id="realmInd" hidden>
+        <span class="realm-lbl">realm</span>
+        <span class="realm-host" id="realmHost"></span>
+      </div>
+      <div class="state-right">
+        <span class="dot" id="statusDot" data-state="disconnected"></span>
+        <div class="state-pill" id="statePill">disconnected</div>
+      </div>
+    </header>
+
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button class="tab active" id="tab-widgets" data-panel="panel-widgets"
+              role="tab" aria-selected="true" aria-controls="panel-widgets">Widgets</button>
+      <button class="tab" id="tab-status" data-panel="panel-status"
+              role="tab" aria-selected="false" aria-controls="panel-status">
+        Status<span class="tab-badge" id="statusBadge" hidden></span>
+      </button>
+      <button class="tab" id="tab-config" data-panel="panel-config"
+              role="tab" aria-selected="false" aria-controls="panel-config">Config</button>
+    </nav>
+
+    <main>
+      <!-- =========================== WIDGETS =========================== -->
+      <div class="panel active" id="panel-widgets" role="tabpanel" aria-labelledby="tab-widgets">
+        <section class="card" id="instancesCard">
+          <div class="card-head">
+            <h2>Your widgets</h2>
+            <span class="card-tools">
+              <span class="muted-note" id="systemNameNote"></span>
+              <span class="removeall" id="removeAllWrap"></span>
+            </span>
+          </div>
+          <div id="tileGrid" class="tile-grid"></div>
+        </section>
+      </div>
+
+      <!-- =========================== STATUS =========================== -->
+      <div class="panel" id="panel-status" role="tabpanel" aria-labelledby="tab-status" hidden>
+        <section class="card">
+          <h2>Status</h2>
+          <dl class="status-grid">
+            <dt>State</dt><dd id="s-state">—</dd>
+            <dt>Channel open</dt><dd id="s-open">—</dd>
+            <dt>CNS version</dt><dd id="s-version">—</dd>
+            <dt>System ID</dt><dd id="s-system" class="mono">—</dd>
+            <dt>Widgets attached</dt><dd id="s-attached">—</dd>
+            <dt>Last error</dt><dd id="s-error">—</dd>
+          </dl>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <h2>Event log</h2>
+            <button type="button" id="clearLogBtn" class="ghost">Clear</button>
+          </div>
+          <div id="log" class="log" role="log" aria-live="polite"></div>
+        </section>
+      </div>
+
+      <!-- =========================== CONFIG =========================== -->
+      <div class="panel" id="panel-config" role="tabpanel" aria-labelledby="tab-config" hidden>
+        <section class="card">
+          <h2>Connection</h2>
+          <form id="connectForm" class="grid">
+            <label>Protocol
+              <select id="protocol">
+                <option value="wss:">wss:</option>
+                <option value="ws:">ws:</option>
+              </select>
+            </label>
+            <label>Host
+              <input id="host" type="text" placeholder="my.realm.example.com" autocomplete="off" />
+            </label>
+            <label>Port
+              <input id="port" type="number" value="443" min="1" max="65535" />
+            </label>
+            <label>Username
+              <input id="username" type="text" autocomplete="off" />
+            </label>
+            <label>Password
+              <input id="password" type="password" autocomplete="off" />
+            </label>
+            <label>System name
+              <input id="systemName" type="text" placeholder="Arete Widget" autocomplete="off" />
+            </label>
+            <label class="checkbox">
+              <input id="allowSelfSigned" type="checkbox" disabled />
+              <span>Allow self-signed TLS <small>(not possible in a browser — the realm needs a valid certificate)</small></span>
+            </label>
+            <label class="checkbox">
+              <input id="rememberPassword" type="checkbox" />
+              <span>Remember password <small id="rememberNote">(encrypted by the OS keychain)</small></span>
+            </label>
+            <label class="checkbox">
+              <input id="autoConnect" type="checkbox" />
+              <span>Connect automatically on launch</span>
+            </label>
+            <label class="checkbox">
+              <input id="themeLight" type="checkbox" />
+              <span>Light theme</span>
+            </label>
+            <label style="grid-column: 1 / -1">Widget library URL
+              <input id="libraryUrl" type="text" autocomplete="off"
+                     placeholder="https://project-arete.github.io/widget-library" />
+            </label>
+
+            <div class="actions">
+              <button type="submit" id="connectBtn" class="primary">Connect</button>
+              <button type="button" id="disconnectBtn" disabled>Disconnect</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="card note">
+          <h2>About widget files</h2>
+          <p>
+            A widget is a plain <code>YAML</code> file: its CP capabilities (validated against
+            <a href="#" id="cpLink" data-url="https://cp.padi.io/profiles/padi.light">cp.padi.io</a>),
+            a faceplate built from primitives (lamp, toggle, value, label, field), and optional
+            auto-actualize rules. Drop new files into your widget folder and hit Reload.
+          </p>
+        </section>
+      </div>
+    </main>
+
+    <!-- ====================== ADD / EDIT WIDGET DIALOG ====================== -->
+    <div class="overlay" id="dlgOverlay" hidden>
+      <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+        <div class="dlg-head">
+          <h2 id="dlgTitle">Add a widget</h2>
+          <button type="button" class="ghost dlg-close" id="dlgClose" aria-label="Close">✕</button>
+        </div>
+        <div id="dlgBody" class="dlg-body"></div>
+        <div class="dlg-foot" id="dlgFoot">
+          <button type="button" id="reloadDefsBtn" class="ghost" title="Rescan the widget folders and refresh the online library">Reload library</button>
+          <p class="muted-note" id="userDirNote"></p>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="browser-widget-bridge.js"></script>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

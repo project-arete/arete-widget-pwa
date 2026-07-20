@@ -1,0 +1,47 @@
+# Simple Device — client role of cp:skycentrics.oadr3.event.simple
+# ("Simple OpenADR 3.0 Profile", SkyCentrics).
+widget: oadr-device
+title: OADR Simple Device
+description: A VEN resource that follows the controller's demand-response level - its operating level auto-actualizes to the signal - and reports its status back.
+icon: "🔋"
+color: "#4c8bf5"
+
+capabilities:
+  - profile: skycentrics.oadr3.event.simple
+    role: consumer
+
+view:
+  - type: label
+    text: event from the controller
+  - type: meter
+    bind: simpleLevel
+    min: 0
+    max: 3
+    caption: DR level commanded
+  - type: value
+    bind: duration
+    caption: event duration
+  - type: value
+    bind: reportReq
+    caption: reports requested
+  - type: label
+    text: this device
+  - type: meter
+    bind: operatingLevel
+    min: 0
+    max: 3
+    caption: operating level (auto-follows)
+  - type: field
+    bind: status
+    caption: device status
+  - type: field
+    bind: reports
+    caption: reports payload
+
+behavior:
+  init:
+    operatingLevel: "0"
+    status: ready
+  rules:
+    - when: simpleLevel     # a compliant device operates at the commanded level…
+      set: operatingLevel   # …and reports that it does

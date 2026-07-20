@@ -1,0 +1,31 @@
+# Virtual Bulb — a light that abides by cp:padi.light (consumer role).
+widget: bulb
+title: Virtual Bulb
+description: A light being controlled. Follows the controller's sOut and reports its actual state back on cState.
+icon: "💡"
+color: "#f5d34c"
+
+capabilities:
+  - profile: padi.light
+    role: consumer
+
+view:
+  - type: lamp
+    bind: sOut          # the bulb glows when the controller says on
+    on: "1"
+  - type: label
+    bind: sLabel
+    caption: controller
+  - type: value
+    bind: cState
+    caption: reported state
+
+behavior:
+  init:
+    cState: "0"
+    cLabel: Virtual Bulb
+  rules:
+    - when: sOut        # auto-actualize: do what the controllers say…
+      set: cState       # …and report it back
+      aggregate: average # 2+ controllers disagreeing -> report the average
+                         # (one of two switches on => cState "0.5")

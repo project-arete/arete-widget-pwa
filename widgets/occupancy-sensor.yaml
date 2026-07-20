@@ -1,0 +1,39 @@
+# Occupancy Sensor — provider role of cp:padi.occupancy.basic
+# ("Basic occupancy of an area of a building").
+# The provider REPORTS occupancy: status (vacant/occupied, required) and the
+# people count — both propagate to the consumer. The consumer's optional id
+# comes back on this side. (No count→status auto-rule: the CP's status is a
+# free report, and rule maps are discrete, so occupancy is reported directly.)
+widget: occupancy-sensor
+title: Occupancy Sensor
+description: Provider side of padi.occupancy.basic - reports whether an area of a building is vacant or occupied and how many people are in it, and shows the optional id the consumer supplies.
+icon: "🚶"
+color: "#4c8bf5"
+
+capabilities:
+  - profile: padi.occupancy.basic
+    role: provider
+
+view:
+  - type: label
+    text: you report
+  - type: options
+    bind: status
+    values: [vacant, occupied]
+    caption: occupancy (required)
+  - type: stepper
+    bind: count
+    min: 0
+    step: 1
+    caption: people count
+  - type: split
+  - type: label
+    text: from the consumer
+  - type: value
+    bind: id
+    caption: consumer id (optional)
+
+behavior:
+  init:
+    status: vacant   # required by the CP; propagated, so bind-safe
+    count: "0"

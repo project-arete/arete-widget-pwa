@@ -1,0 +1,41 @@
+# Lease Tenant — client role of cp:padi.lease.basic ("Simple leasing profile").
+widget: lease-tenant
+title: Lease Tenant
+description: Proposes a lease - who you are, the rent you offer, and the end date - and watches the landlord's terms and the lease status move through its lifecycle.
+icon: "🔑"
+color: "#f5b34c"
+
+capabilities:
+  - profile: padi.lease.basic
+    role: consumer
+
+view:
+  - type: label
+    text: your proposal
+  - type: field
+    bind: tenant
+    caption: tenant name
+  - type: stepper
+    bind: rent
+    min: 0
+    step: 100
+    caption: rent offered (USD/month)
+  - type: date
+    bind: end
+    caption: lease end date
+  - type: field
+    bind: logo
+    caption: logo URL (800x400)
+  - type: split
+  - type: label
+    text: the landlord's terms
+  - type: value
+    bind: rate
+    caption: rate (per SqFt)
+  - type: value
+    bind: capacity
+    caption: capacity (people)
+  - type: options
+    bind: status
+    values: [Interest, Offer, Accept, Decline, Approved, Delinquent, Terminated]
+    caption: lease status

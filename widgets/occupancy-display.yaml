@@ -1,0 +1,32 @@
+# Occupancy Display — consumer role of cp:padi.occupancy.basic.
+# Sees the propagated status and count; provides an optional id back to the
+# sensor. status and count are provider-written but propagated, so both are
+# readable here (no dead binds).
+widget: occupancy-display
+title: Occupancy Display
+description: Consumer side of padi.occupancy.basic - shows whether the area is vacant or occupied and the current people count, and can send an optional id up to the sensor.
+icon: "👥"
+color: "#3ecf8e"
+
+capabilities:
+  - profile: padi.occupancy.basic
+    role: consumer
+
+view:
+  - type: label
+    text: reported by the sensor
+  - type: lamp
+    bind: status
+    on: occupied      # glows when the area is occupied
+  - type: value
+    bind: status
+    caption: occupancy
+  - type: value
+    bind: count
+    caption: people count
+  - type: split
+  - type: label
+    text: you provide
+  - type: field
+    bind: id
+    caption: your id (optional)

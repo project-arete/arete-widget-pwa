@@ -1,0 +1,29 @@
+# Value Display — consumer role of cp:padi.value ("Simple value conveyance").
+# Shows the propagated value and status; provides an optional source id back to
+# the provider. value and status are provider-written but propagated, so both
+# are readable here (no dead binds).
+widget: value-display
+title: Value Display
+description: Consumer side of padi.value - shows the numeric value and status conveyed by the source, and can send an optional id back to it.
+icon: "🔢"
+color: "#3ecf8e"
+
+capabilities:
+  - profile: padi.value
+    role: consumer
+
+view:
+  - type: label
+    text: conveyed by the source
+  - type: value
+    bind: value
+    caption: value
+  - type: value
+    bind: status
+    caption: status
+  - type: split
+  - type: label
+    text: you provide
+  - type: field
+    bind: id
+    caption: your id (optional)

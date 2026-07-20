@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src https: data:;" />
+    <title>Widget</title>
+    <link rel="stylesheet" href="faceplate.css" />
+  </head>
+  <body>
+    <header class="fp-head">
+      <div class="fp-id">
+        <span class="fp-icon" id="fpIcon" hidden></span>
+        <div>
+          <h1 id="fpName">—</h1>
+          <p id="fpKind">—</p>
+        </div>
+      </div>
+      <div class="fp-controls">
+        <span class="chip off" id="fpChip">…</span>
+        <button type="button" class="fp-btn" id="fpPin" title="Keep this faceplate on top">📌</button>
+        <button type="button" class="fp-btn" id="fpClose" title="Close (the widget keeps running)">✕</button>
+      </div>
+    </header>
+    <nav class="fp-strip" id="fpStrip" hidden></nav>
+    <main id="fpBody"></main>
+    <footer class="fp-foot" id="fpFoot">
+      <span id="fpPeers" class="fp-peers"></span>
+      <span id="fpAuto" class="fp-auto" hidden><span class="chip auto">auto</span></span>
+    </footer>
+    <script src="faceplate-bridge.js"></script>
+    <script src="faceplate.js"></script>
+  </body>
+</html>

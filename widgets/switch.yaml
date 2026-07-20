@@ -1,0 +1,31 @@
+# Virtual Switch — a controller for cp:padi.light (provider role).
+widget: switch
+title: Virtual Switch
+description: A controller. Flip the toggle to command any connected light; the light reports back on cState.
+icon: "🎚"
+color: "#3ecf8e"
+
+capabilities:
+  - profile: padi.light
+    role: provider
+
+view:
+  - type: toggle
+    bind: sOut
+    on: "1"
+    off: "0"
+    caption: power
+  - type: field
+    bind: sLabel
+    caption: switch label
+  - type: lamp
+    bind: cState        # glows when the light CONFIRMS it is on
+    on: "1"
+  - type: value
+    bind: cState
+    caption: light reports
+
+behavior:
+  init:
+    sOut: "0"
+    sLabel: Virtual Switch

@@ -1,0 +1,73 @@
+# Trust Consumer — client role of cp:padi.trust.basic ("Based on DTC Paper").
+widget: trust-consumer
+title: Trust Consumer
+description: Requests trust levels (1-5) for security, privacy, safety, reliability and resiliency, with an attestation URL — and shows what a connected provider is offering.
+icon: "🤝"
+color: "#9b6ef5"
+
+capabilities:
+  - profile: padi.trust.basic
+    role: consumer
+
+view:
+  - type: label
+    text: you request
+  - type: meter
+    bind: reqSecurity
+    min: 1
+    max: 5
+    caption: security
+  - type: meter
+    bind: reqPrivacy
+    min: 1
+    max: 5
+    caption: privacy
+  - type: meter
+    bind: reqSafety
+    min: 1
+    max: 5
+    caption: safety
+  - type: meter
+    bind: reqReliability
+    min: 1
+    max: 5
+    caption: reliability
+  - type: meter
+    bind: reqResiliency
+    min: 1
+    max: 5
+    caption: resiliency
+  - type: field
+    bind: reqAttestation
+    caption: attestation URL
+  - type: split
+  - type: label
+    text: provider offers
+  - type: meter
+    bind: provSecurity
+    min: 1
+    max: 5
+    caption: security
+  - type: meter
+    bind: provPrivacy
+    min: 1
+    max: 5
+    caption: privacy
+  - type: meter
+    bind: provSafety
+    min: 1
+    max: 5
+    caption: safety
+  - type: meter
+    bind: provReliability
+    min: 1
+    max: 5
+    caption: reliability
+  - type: meter
+    bind: provResiliency
+    min: 1
+    max: 5
+    caption: resiliency
+  - type: value
+    bind: provAttestation
+    caption: provider attestation

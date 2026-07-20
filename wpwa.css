@@ -1,0 +1,58 @@
+/* wpwa.css — PWA-only overlay for the Widget app: faceplate overlays +
+   phone-friendly sizing. Desktop styles.css/widget.css are untouched copies. */
+
+/* ---- faceplates as overlays (instead of Electron windows) ---- */
+.fp-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(5, 9, 16, .62);
+  display: flex; align-items: center; justify-content: center;
+  padding: 18px;
+}
+.fp-frame {
+  border: 1px solid rgba(255, 255, 255, .12); border-radius: 14px;
+  width: min(560px, 100%); height: min(680px, 100%);
+  background: #10151d;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .6);
+}
+.fp-overlay.fp-focus .fp-frame { outline: 2px solid #4f8cff; }
+
+@media (max-width: 640px) {
+  .fp-overlay { padding: 0; align-items: stretch; }
+  .fp-frame { width: 100%; height: 100%; border-radius: 0; border: none; }
+}
+
+/* ---- phone sizing (lessons from the Monitor PWA) ---- */
+@media (max-width: 760px) {
+  body { font-size: 16px; }
+  .topbar { flex-wrap: wrap; gap: 8px 12px; padding: 10px 14px; }
+  .topbar h1 { font-size: 18px; }
+  .subtitle { font-size: 13px; }
+  .realm-ind { position: static; transform: none; order: 3; width: 100%; max-width: 100%; justify-content: flex-start; }
+  .state-pill { font-size: 13px; }
+
+  .tabs { flex-wrap: wrap; overflow-x: visible; white-space: normal; padding: 8px 10px 6px; gap: 4px; }
+  .tab { flex: 1 1 30%; text-align: center; padding: 10px 4px; border-radius: 8px; min-height: 42px; }
+
+  main { padding: 12px; overflow-x: hidden; }
+  .card { padding: 14px; }
+  .card h2 { font-size: 15px; }
+  form.grid, .grid { grid-template-columns: 1fr !important; }
+  label { font-size: 14px; }
+  input, select { min-height: 40px; font-size: 16px; }
+  button { min-height: 42px; }
+
+  .tile-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .tile-name { font-size: 15px; }
+  .tile-sub { font-size: 12.5px; }
+  .tile-state .kv, .tile-peers { font-size: 12.5px; }
+  .muted-note { font-size: 13px; }
+  .log { font-size: 13px; }
+}
+@media (max-width: 430px) {
+  .tile-grid { grid-template-columns: 1fr; }
+}
+
+@supports (padding: env(safe-area-inset-top)) {
+  .topbar { padding-top: calc(10px + env(safe-area-inset-top)); }
+  main { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+}
