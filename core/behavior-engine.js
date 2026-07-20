@@ -97,6 +97,18 @@ function aggregateInput(rule, state, perConn) {
 export function computeActions(model, state, pending = {}, perConn = {}) {
   const actions = [];
   for (const rule of model.behavior.rules) {
+    if (rule.reply) {
+      // Addressed rule: react per connection, respond on the SAME connection.
+      for (const connId in perConn) {
+        const raw = perConn[connId][rule.when];
+        if (raw === undefined || raw === null) continue;
+        const out = rule.map ? (rule.map[String(raw)] ?? String(raw)) : String(raw);
+        if (perConn[connId][rule.set] === out) continue;          // converged
+        if (pending[connId + '|' + rule.set] === out) continue;   // in flight
+        actions.push({ property: rule.set, value: out, connId });
+      }
+      continue;
+    }
     const input = rule.aggregate ? aggregateInput(rule, state, perConn) : state[rule.when];
     if (input === undefined || input === null) continue; // nothing to react to yet
     const out = rule.map ? (rule.map[String(input)] ?? String(input)) : String(input);
@@ -111,8 +123,16 @@ export function computeActions(model, state, pending = {}, perConn = {}) {
  * Drop pending entries that the state now confirms (echo arrived).
  * Mutates and returns `pending`.
  */
-export function reconcilePending(state, pending) {
+export function reconcilePending(state, pending, perConn = {}) {
   for (const p in pending) {
+    const bar = p.indexOf('|');
+    if (bar !== -1) {
+      // connection-scoped pending: "<connId>|<prop>", confirmed by perConn
+      const connId = p.slice(0, bar);
+      const prop = p.slice(bar + 1);
+      if (perConn[connId] && perConn[connId][prop] === pending[p]) delete pending[p];
+      continue;
+    }
     if (state[p] === pending[p]) delete pending[p];
   }
   return pending;

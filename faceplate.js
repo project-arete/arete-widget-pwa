@@ -123,7 +123,7 @@ function wrap(prim, child) {
   // Own-written property the CP does not propagate: honest "local" marker.
   if (prim.bind && fp.localOnly && fp.localOnly.includes(prim.bind)) {
     const lc = el('span', 'chip-local', 'local');
-    lc.title = 'no propagate flag in the CP — this property is not part of the connection contract (connections should not carry it)';
+    lc.title = 'no propagate flag in the CP — capability writes are not broadcast to connections; deliver it per-connection (addressed) instead';
     box.appendChild(lc);
   }
   return box;

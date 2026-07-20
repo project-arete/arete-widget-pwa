@@ -1,0 +1,28 @@
+# Ping Responder — consumer of cp:padi.ping.
+# Receives pings (sendP) and echoes each one back as `response` — written
+# into the SAME connection the ping arrived on (reply rule), so every sender
+# gets its own answer. `response` carries no propagate flag by design: it is
+# addressed, not broadcast.
+widget: ping-responder
+title: Ping Responder
+description: Echoes every ping back on the connection it arrived on — each sender gets its own response.
+icon: "📥"
+color: "#3ecf8e"
+
+capabilities:
+  - profile: padi.ping
+    role: consumer
+
+view:
+  - type: value
+    bind: sendP
+    caption: last ping
+  - type: value
+    bind: response
+    caption: echoed response
+
+behavior:
+  rules:
+    - when: sendP       # each connection's incoming ping…
+      set: response     # …answered as response…
+      reply: true       # …on that same connection (addressed, not broadcast)

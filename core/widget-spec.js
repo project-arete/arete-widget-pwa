@@ -169,19 +169,12 @@ export function validateDefinition(raw, profileJsons) {
     }
     return r;
   };
-  // Reading a PEER-written property only works if the CP propagates it —
-  // otherwise the value never reaches this widget's connections, so a display
-  // could never show it and a rule could never fire. Refuse such binds.
-  const assertReadable = (prop, where) => {
-    const r = resolveBind(prop, where);
-    if (!r) return null;
-    const own = roleWrites(r.role, { writer: r.writer });
-    if (!own && !r.propagate) {
-      e(`${where}: "${prop}" is written by the peer side but the CP does not set its propagate flag — the value never reaches this widget's connections, so it can never appear here.`);
-      return null;
-    }
-    return r;
-  };
+  // Any declared property is readable. A missing propagate flag means the
+  // property is NOT broadcast from the writer's capability — but it can still
+  // arrive here via the ADDRESSED channel: the peer writing it directly into
+  // a specific connection (e.g. a reply rule). So reads are always legal;
+  // whether values appear depends on how the peer writes.
+  const assertReadable = (prop, where) => resolveBind(prop, where);
 
   // ---- view ----
   const viewIn = Array.isArray(raw.view) ? raw.view : [];
@@ -270,6 +263,14 @@ export function validateDefinition(raw, profileJsons) {
             return;
           }
           rule.aggregate = agg;
+        }
+        if (r.reply != null) {
+          // reply: true — the rule runs PER CONNECTION: it reads `when` from
+          // each connection and writes `set` back into that same connection
+          // (the addressed channel), so every peer gets its own response.
+          if (r.reply !== true) { e(`${where}: \`reply:\` must be true when present.`); return; }
+          if (rule.aggregate) { e(`${where}: \`reply:\` cannot combine with \`aggregate:\`.`); return; }
+          rule.reply = true;
         }
         behavior.rules.push(rule);
       });

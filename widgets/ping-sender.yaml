@@ -1,0 +1,25 @@
+# Ping Sender — provider of cp:padi.ping.
+# Sends a message to every connected responder (sendP, propagated) and shows
+# the response each responder writes back on the addressed per-connection
+# channel. The `send` field demonstrates the contrast: no propagate flag and
+# written at capability level, so it never leaves this node.
+widget: ping-sender
+title: Ping Sender
+description: Sends a ping to connected responders and shows the response coming back on each connection.
+icon: "📤"
+color: "#4f8cff"
+
+capabilities:
+  - profile: padi.ping
+    role: provider
+
+view:
+  - type: field
+    bind: sendP
+    caption: message (propagated to responders)
+  - type: field
+    bind: send
+    caption: message (local — capability only)
+  - type: value
+    bind: response
+    caption: response

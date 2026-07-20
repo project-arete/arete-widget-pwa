@@ -1,5 +1,5 @@
 // sw.js — Arete Widget PWA service worker (deterministic updates).
-const VERSION = 'arete-widget-pwa-v1';
+const VERSION = 'arete-widget-pwa-v2';
 const ASSETS = [
   "./",
   "./index.html",
@@ -34,6 +34,8 @@ const ASSETS = [
   "./widgets/trust-provider.yaml",
   "./widgets/value-display.yaml",
   "./widgets/value-source.yaml"
+  "./widgets/ping-responder.yaml",
+  "./widgets/ping-sender.yaml",
 ];
 
 self.addEventListener('install', (e) => {
