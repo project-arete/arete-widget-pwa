@@ -159,3 +159,4 @@ button.danger { color: var(--red); }
 }
 .ctx-info .mono { font-family: var(--mono); font-size: 11px; color: var(--text); word-break: break-all; }
 .ctx-info strong { color: var(--text); }
+.field-missing { outline: 2px solid var(--red); outline-offset: -1px; }

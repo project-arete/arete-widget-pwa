@@ -95,8 +95,9 @@ function renderStatus(st) {
 function realmContexts() {
   const m = {};
   const nameRe = /^cns\/([^/]+)\/nodes\/([^/]+)\/contexts\/([^/]+)\/name$/;
-  const capRe = /^cns\/([^/]+)\/nodes\/([^/]+)\/contexts\/([^/]+)\/(provider|consumer)\/([^/]+)\//;
+  const capRe = /^cns\/([^/]+)\/nodes\/([^/]+)\/contexts\/([^/]+)\/(provider|consumer)\/([^/]+)(\/.*)?$/;
   const decls = {}; // ctxId -> Set("sys|node|role|profile") — distinct declarations
+  const bound = {}; // ctxId -> Set(same key) — declarations that already have ≥1 connection
   for (const k in keys) {
     let mm = k.match(nameRe);
     if (mm) {
@@ -106,17 +107,23 @@ function realmContexts() {
       continue;
     }
     mm = k.match(capRe);
-    if (mm) (decls[mm[3]] || (decls[mm[3]] = new Set())).add(`${mm[1]}|${mm[2]}|${mm[4]}|${mm[5]}`);
+    if (mm) {
+      const id = `${mm[1]}|${mm[2]}|${mm[4]}|${mm[5]}`;
+      (decls[mm[3]] || (decls[mm[3]] = new Set())).add(id);
+      if (mm[6] && mm[6].startsWith('/connections/')) (bound[mm[3]] || (bound[mm[3]] = new Set())).add(id);
+    }
   }
   return Object.entries(m)
     .map(([id, e]) => {
       const names = Object.entries(e.names).sort((a, b) => b[1] - a[1]);
-      const roles = {}; // "role|profile" -> distinct declaration count
+      const roles = {};   // "role|profile" -> distinct declaration count
+      const waiting = {}; // "role|profile" -> declarations with NO connection yet
       for (const d of decls[id] || []) {
         const [, , role, profile] = d.split('|');
         roles[`${role}|${profile}`] = (roles[`${role}|${profile}`] || 0) + 1;
+        if (!(bound[id] || new Set()).has(d)) waiting[`${role}|${profile}`] = (waiting[`${role}|${profile}`] || 0) + 1;
       }
-      return { id, name: names[0][0], also: names.slice(1).map(([n]) => n), declarations: e.count, roles };
+      return { id, name: names[0][0], also: names.slice(1).map(([n]) => n), declarations: e.count, roles, waiting };
     })
     .sort((a, b) => String(a.name).localeCompare(String(b.name)));
 }
@@ -134,13 +141,19 @@ function contextsMatching(d, excludeCtxId) {
     .filter((c) => c.id !== excludeCtxId)
     .map((c) => {
       const partners = [];
+      let waiting = 0;
       for (const w of wanted) {
         const n = c.roles[`${w.partner}|${w.profile}`] || 0;
-        if (n) partners.push(`${n} ${w.profile} ${w.partner}${n === 1 ? '' : 's'}`);
+        const wn = c.waiting[`${w.partner}|${w.profile}`] || 0;
+        waiting += wn;
+        if (n) partners.push(`${n} ${w.profile} ${w.partner}${n === 1 ? '' : 's'}${wn ? `, ${wn} unbound` : ''}`);
       }
-      return { ...c, partnersText: partners.join(', ') };
+      return { ...c, waiting, partnersText: partners.join(', ') };
     })
-    .filter((c) => c.partnersText);
+    .filter((c) => c.partnersText)
+    // Contexts with an UNBOUND partner first — that's almost always the
+    // context the user is trying to complete — then most partners, then name.
+    .sort((a, b) => b.waiting - a.waiting || b.declarations - a.declarations || String(a.name).localeCompare(String(b.name)));
 }
 
 // =========================================================================
@@ -291,6 +304,10 @@ function renderDialog(preserve = false) {
     .map((c) => `<option value="${esc(c.id)}" data-name="${esc(c.name)}">${esc(c.name)} — ${esc(c.id.slice(0, 8))}… (${esc(c.partnersText)})</option>`)
     .join('');
   const joinDisabled = ctxs.length ? '' : 'disabled';
+  // Creating: if any context could bind this widget, DEFAULT to joining the
+  // best match (unbound partners first) — a widget alone in a fresh context
+  // binds nothing, and a prefilled context name made that accident silent.
+  const defaultJoin = dlg.mode === 'create' && ctxs.length > 0;
 
   const keepChoice = dlg.mode === 'edit'
     ? `<label class="checkbox"><input type="radio" name="af-ctx" id="af-ctx-keep" checked /> <span>Keep current context</span></label>`
@@ -303,11 +320,11 @@ function renderDialog(preserve = false) {
     <label>Name <input type="text" id="af-name" value="${esc(inst ? inst.name : d.title)}" autocomplete="off" /></label>
     <div class="ctx-choice">
       ${keepChoice}
-      <label class="checkbox"><input type="radio" name="af-ctx" id="af-ctx-new" ${dlg.mode === 'edit' ? '' : 'checked'} /> <span>New context</span></label>
-      <label class="checkbox"><input type="radio" name="af-ctx" id="af-ctx-join" ${joinDisabled} /> <span>Join existing</span></label>
+      <label class="checkbox"><input type="radio" name="af-ctx" id="af-ctx-new" ${dlg.mode === 'edit' || defaultJoin ? '' : 'checked'} /> <span>New context</span></label>
+      <label class="checkbox"><input type="radio" name="af-ctx" id="af-ctx-join" ${joinDisabled} ${defaultJoin ? 'checked' : ''} /> <span>Join existing</span></label>
     </div>
     <div id="af-join-hint" class="ctx-info" ${joinDisabled ? '' : 'hidden'}>No context in the realm has a matching partner for this widget${connected ? '' : ' (not connected)'} — create a new context and let a partner join you instead.</div>
-    <label id="af-ctxname-row">Context name <input type="text" id="af-ctxname" value="${esc(inst ? inst.contextName : d.title)}" autocomplete="off" /></label>
+    <label id="af-ctxname-row">Context name <input type="text" id="af-ctxname" value="${esc(inst ? inst.contextName : '')}" placeholder="name the new matching space — required" autocomplete="off" /></label>
     ${keepInfo}
     <div id="af-ctxinfo-new" class="ctx-info" ${dlg.mode === 'edit' ? 'hidden' : ''}>Creates a new matching space with id <span class="mono">${esc(pendingCtxId || '')}</span>.
       Nothing else is in it yet — the widget will show <em>awaiting broker</em> until something joins this context.${dlg.mode === 'edit' ? ' The old context registration remains on the realm until cleaned up there.' : ''}</div>
@@ -405,8 +422,12 @@ async function submitDialog() {
     spec.contextId = inst.contextId;
     spec.contextName = q('af-ctxname').value.trim() || inst.contextName;
   } else {
+    // A NEW context needs a deliberate name — never defaulted from the widget
+    // (that default is how identically-named orphan contexts got minted).
+    const ctxName = q('af-ctxname').value.trim();
+    if (!ctxName) { q('af-ctxname').focus(); q('af-ctxname').classList.add('field-missing'); return; }
     spec.contextId = pendingCtxId || undefined; // exactly the id shown
-    spec.contextName = q('af-ctxname').value.trim() || name;
+    spec.contextName = ctxName;
   }
 
   btn.disabled = true;
@@ -460,6 +481,7 @@ els.dlgBody.addEventListener('input', (e) => {
     lastFilter = e.target.value; // remember for the next add this session
     renderPickList(); // ONLY the list — the input keeps focus and its value
   }
+  if (e.target.id === 'af-ctxname') e.target.classList.remove('field-missing');
 });
 els.dlgBody.addEventListener('change', (e) => {
   const id = e.target && e.target.id;
@@ -495,17 +517,44 @@ function renderRemoveAll() {
     : `<button type="button" class="danger" data-ra-arm title="Remove every widget from this app">Remove all…</button>`;
 }
 
+// A widget attached with ZERO connections is "awaiting broker" for a grace
+// period; if it is STILL unbound after that, the wait is almost certainly
+// structural (nothing complementary in its context) — badge it and say so.
+const UNBOUND_GRACE_MS = 10000;
+const zeroSince = new Map(); // instance id -> first time seen attached with 0 conns
+let unboundTimer = null;
+
+function unboundHint(i) {
+  const def = defs.find((d) => d.id === i.widgetId);
+  const partners = ((def && def.capabilities) || [])
+    .map((c) => `a ${c.role === 'provider' ? 'consumer' : 'provider'} of ${c.profile}`);
+  const need = partners.length ? partners.join(' or ') : 'a matching partner';
+  return `No binding after ${UNBOUND_GRACE_MS / 1000}s — this context has no ${need}. ` +
+    'Edit the widget and join the context its partner is in.';
+}
+
 function renderTiles() {
   els.s.attached.textContent = `${instances.filter((i) => i.attached).length} / ${instances.length}`;
+  let anyWaiting = false;
   const tiles = instances.map((i) => {
     const def = defs.find((d) => d.id === i.widgetId);
     const icon = def && def.icon ? def.icon : '▦';
     const accent = def && def.color ? ` style="--tile-accent:${esc(def.color)}"` : '';
-    const chip = !i.attached
-      ? '<span class="chip off">offline</span>'
-      : i.connections > 0
-        ? `<span class="chip ok">bound · ${i.connections}</span>`
+    let chip;
+    if (!i.attached) {
+      zeroSince.delete(i.id);
+      chip = '<span class="chip off">offline</span>';
+    } else if (i.connections > 0) {
+      zeroSince.delete(i.id);
+      chip = `<span class="chip ok">bound · ${i.connections}</span>`;
+    } else {
+      if (!zeroSince.has(i.id)) zeroSince.set(i.id, Date.now());
+      const stuck = Date.now() - zeroSince.get(i.id) > UNBOUND_GRACE_MS;
+      anyWaiting = anyWaiting || !stuck;
+      chip = stuck
+        ? `<span class="chip bad" title="${esc(unboundHint(i))}">unbound</span>`
         : '<span class="chip wait">awaiting broker</span>';
+    }
     const stateBits = Object.entries(i.state || {}).slice(0, 3)
       .map(([k, v]) => `<span class="kv"><span class="k">${esc(k)}</span>=<span class="v">${esc(v)}</span></span>`)
       .join(' ');
@@ -546,6 +595,11 @@ function renderTiles() {
       <span class="plus-sign">+</span><span class="plus-label">Add widget</span>
     </button>`;
   renderRemoveAll();
+  // While anything sits in its grace period, re-render on a short timer so
+  // "awaiting broker" flips to "unbound" without needing a state event.
+  if (anyWaiting && !unboundTimer) {
+    unboundTimer = setTimeout(() => { unboundTimer = null; renderTiles(); }, UNBOUND_GRACE_MS / 2);
+  }
 }
 
 els.removeAllWrap.addEventListener('click', (e) => {
