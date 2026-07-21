@@ -16,6 +16,7 @@ let perConn = {};           // connId -> that connection's property map
 let peers = [];             // [{connId, system, node, profile}]
 let selConn = 'all';        // 'all' | connId — which connection the read side shows
 let mixedMap = {};          // bind -> [distinct values] when peers disagree (All view)
+let rtts = {};              // echo prop -> { connId: ms } (round-trip times, app-measured)
 let peerWritten = new Set(); // binds NOT writable by this widget = written by peers
 let allBinds = new Set();   // every bound property in the view (mixed applies to all)
 const updaters = [];        // fns called with (state) on every push
@@ -365,6 +366,43 @@ const BUILDERS = {
     box.append(minus, num, plus);
     return box;
   },
+
+  // Round-trip meter: send → responder → back on the same connection, timed
+  // by the app at both ends of the write. Scope follows the peer strip: a
+  // selected peer shows THAT connection's time; All summarizes the range.
+  rtt(prim) {
+    const v = el('div', 'value rtt empty', '—');
+    let prevText = null;
+    updaters.push(() => {
+      const times = rtts[prim.echo] || {};
+      let text = '—';
+      let title = '';
+      if (selConn !== 'all') {
+        text = times[selConn] !== undefined ? `${times[selConn]} ms` : '—';
+      } else {
+        const measured = peers.filter((p) => times[p.connId] !== undefined);
+        if (measured.length === 1) {
+          text = `${times[measured[0].connId]} ms`;
+          title = `${measured[0].node}: ${times[measured[0].connId]} ms`;
+        } else if (measured.length > 1) {
+          const ms = measured.map((p) => times[p.connId]);
+          const lo = Math.min(...ms);
+          const hi = Math.max(...ms);
+          text = lo === hi ? `${lo} ms` : `${lo}–${hi} ms`;
+          title = measured.map((p) => `${p.node}: ${times[p.connId]} ms`).join(' · ');
+        } else if (Object.keys(times).length === 1) {
+          // times exist but the peer list hasn't caught up — show them anyway
+          text = `${Object.values(times)[0]} ms`;
+        }
+      }
+      v.textContent = text;
+      v.title = title;
+      v.classList.toggle('empty', text === '—');
+      if (prevText !== null && text !== prevText && text !== '—') flash(v);
+      prevText = text;
+    });
+    return v;
+  },
 };
 
 function build() {
@@ -391,6 +429,7 @@ function apply(payload) {
   merged = payload.state || {};
   perConn = payload.perConn || {};
   if (payload.peers) peers = payload.peers;
+  if (payload.rtt) rtts = payload.rtt;
   computeView();
   for (const fn of updaters) fn(state);
 }
@@ -427,13 +466,13 @@ async function init() {
   chip(fp.connections, fp.attached);
   peersLine();
   renderStrip();
-  apply({ state: fp.state, perConn: fp.perConn, peers: fp.peers });
-  window.faceplate.onState(({ state: s, connections, peers: p, perConn: pc }) => {
+  apply({ state: fp.state, perConn: fp.perConn, peers: fp.peers, rtt: fp.rtt });
+  window.faceplate.onState(({ state: s, connections, peers: p, perConn: pc, rtt }) => {
     chip(connections, true);
     peers = p || [];
     peersLine();
     renderStrip();
-    apply({ state: s, perConn: pc, peers: p });
+    apply({ state: s, perConn: pc, peers: p, rtt });
   });
   if (window.faceplate.onTheme) {
     window.faceplate.onTheme((theme) => document.body.classList.toggle('light', theme === 'light'));

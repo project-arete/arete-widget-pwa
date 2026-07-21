@@ -23,3 +23,7 @@ view:
   - type: value
     bind: response
     caption: response
+  - type: rtt
+    send: sendP
+    echo: response
+    caption: round trip

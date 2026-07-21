@@ -31,7 +31,7 @@ const ROLES = ['provider', 'consumer'];
 // Interactive primitives render as controls when the bound property is
 // writable by this widget's role, and as read-only displays otherwise
 // (except toggle/field, which REQUIRE a writable bind).
-const PRIMITIVES = ['lamp', 'toggle', 'value', 'label', 'field', 'meter', 'options', 'image', 'date', 'stepper', 'split'];
+const PRIMITIVES = ['lamp', 'toggle', 'value', 'label', 'field', 'meter', 'options', 'image', 'date', 'stepper', 'split', 'rtt'];
 
 /**
  * Extract the property map from a registry profile JSON (latest version).
@@ -189,6 +189,20 @@ export function validateDefinition(raw, profileJsons) {
 
     if (type === 'split') {
       // Layout marker: starts the second column (you | them faceplates).
+      view.push(prim);
+      return;
+    }
+    if (type === 'rtt') {
+      // Round-trip meter: the app stamps the moment `send:` is written and
+      // stops the clock when a connection's `echo:` comes back carrying the
+      // same value — pure measurement, no property of its own on the wire.
+      if (typeof v.send !== 'string' || !v.send.trim()) { e(`${where}: rtt requires \`send:\` (the property this widget writes).`); return; }
+      if (typeof v.echo !== 'string' || !v.echo.trim()) { e(`${where}: rtt requires \`echo:\` (the property that comes back).`); return; }
+      prim.send = v.send.trim();
+      prim.echo = v.echo.trim();
+      if (!assertWritable(prim.send, where)) return;
+      if (!assertReadable(prim.echo, where)) return;
+      if (prim.send === prim.echo) { e(`${where}: rtt \`send:\` and \`echo:\` must be different properties.`); return; }
       view.push(prim);
       return;
     }

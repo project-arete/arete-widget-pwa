@@ -172,6 +172,7 @@ main.cols .fp-col:first-child { border-right: 1px dashed var(--border); padding-
 /* ---- value / label ---- */
 .value { font-family: var(--mono); font-size: 19px; }
 .value.empty { color: var(--muted); }
+.value.rtt:not(.empty) { color: var(--green); }
 .labelval { font-size: 13px; color: var(--muted); letter-spacing: .02em; }
 
 /* ---- field ---- */

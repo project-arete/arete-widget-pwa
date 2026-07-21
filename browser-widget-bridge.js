@@ -298,6 +298,7 @@ const manager = new (class extends Emitter {
         ...inst, attached: !!live,
         state: live ? live.state : {}, connections: live ? live.connections : 0,
         peers: live ? live.peers || [] : [], perConn: live ? live.perConn || {} : {},
+        rtt: live ? live.rttTimes || {} : {},
         widgetOk: !!(def && def.ok), widgetTitle: def ? def.title : inst.widgetId,
       };
     });
@@ -385,7 +386,7 @@ const manager = new (class extends Emitter {
       capabilities: def.model.capabilities.map((c) => ({ profile: c.profile, role: c.role })),
     });
     inst.systemId = sysId;
-    this.#live.set(inst.id, { caps, pending: {}, state: {}, connections: 0 });
+    this.#live.set(inst.id, { caps, pending: {}, state: {}, connections: 0, rttProbes: {}, rttTimes: {} });
     if (!inst.initDone) {
       for (const prop in def.model.behavior.init) await this.#put(inst, def.model, prop, def.model.behavior.init[prop]);
       inst.initDone = true; this.#save();
@@ -413,7 +414,9 @@ const manager = new (class extends Emitter {
     const { state: st, connections, perConn } = deriveState(keys, inst, def.model);
     reconcilePending(st, live.pending, perConn);
     const peers = this.#peersFor(inst, def.model, keys);
+    const rttChanged = this.#rttCollect(live, def.model, perConn);
     const changed =
+      rttChanged ||
       connections !== live.connections ||
       JSON.stringify(st) !== JSON.stringify(live.state) ||
       JSON.stringify(perConn) !== JSON.stringify(live.perConn || {}) ||
@@ -431,8 +434,46 @@ const manager = new (class extends Emitter {
       this.#log('info', `⚙ ${inst.name}: ${a.property} → "${a.value}" (rule).`);
     }
     if (changed || actions.length) {
-      this.emit('state', { id: inst.id, state: { ...st, ...live.pending }, connections, peers, perConn });
+      this.emit('state', { id: inst.id, state: { ...st, ...live.pending }, connections, peers, perConn, rtt: live.rttTimes || {} });
     }
+  }
+
+  // Round-trip measurement (the `rtt` view primitive): a write to `send:`
+  // stamps t0; the clock stops per CONNECTION when that connection's `echo:`
+  // comes back carrying the same value. App-side only — nothing on the wire.
+  #rttStamp(inst, model, prop, value, connId = null) {
+    const live = this.#live.get(inst.id);
+    if (!live) return;
+    for (const p of model.view) {
+      if (p.type !== 'rtt' || p.send !== prop) continue;
+      live.rttProbes = live.rttProbes || {};
+      live.rttProbes[connId ? `${p.echo}|${connId}` : p.echo] = { value: String(value), t0: Date.now() };
+      const times = { ...(live.rttTimes || {}) };
+      if (connId) {
+        if (times[p.echo]) { times[p.echo] = { ...times[p.echo] }; delete times[p.echo][connId]; }
+      } else {
+        times[p.echo] = {};
+      }
+      live.rttTimes = times;
+    }
+  }
+
+  #rttCollect(live, model, perConn) {
+    let changed = false;
+    const probes = live.rttProbes || {};
+    for (const p of model.view) {
+      if (p.type !== 'rtt') continue;
+      for (const connId in perConn) {
+        const v = perConn[connId] ? perConn[connId][p.echo] : undefined;
+        if (v === undefined) continue;
+        const probe = probes[`${p.echo}|${connId}`] || probes[p.echo];
+        if (!probe || v !== probe.value) continue;
+        live.rttTimes = live.rttTimes || {};
+        const t = (live.rttTimes[p.echo] = live.rttTimes[p.echo] || {});
+        if (t[connId] === undefined) { t[connId] = Date.now() - probe.t0; changed = true; }
+      }
+    }
+    return changed;
   }
 
   async #put(inst, model, prop, value) {
@@ -443,6 +484,7 @@ const manager = new (class extends Emitter {
     const cap = live.caps[`${r.role}|${r.profile}`];
     if (!cap) throw new Error(`No live ${r.role} handle for ${r.profile}.`);
     live.pending[prop] = String(value);
+    this.#rttStamp(inst, model, prop, value); // clock starts at the write
     await cap.put(prop, String(value));
   }
 
@@ -453,6 +495,7 @@ const manager = new (class extends Emitter {
     if (!r || !model.writable.includes(prop)) throw new Error(`Property "${prop}" is not writable by this widget.`);
     if (!(live.peers || []).some((p) => p.connId === connId)) throw new Error('Unknown connection for this widget.');
     const key = `cns/${inst.systemId}/nodes/${inst.nodeId}/contexts/${inst.contextId}/${r.role}/${r.profile}/connections/${connId}/properties/${prop}`;
+    this.#rttStamp(inst, model, prop, value, connId); // clock starts at the write
     await service.putKey(key, String(value));
     live.perConn = { ...(live.perConn || {}), [connId]: { ...((live.perConn || {})[connId] || {}), [prop]: String(value) } };
     this.#log('info', `⇢ ${inst.name}: ${prop} → "${value}" (this connection only).`);
@@ -469,6 +512,7 @@ const manager = new (class extends Emitter {
     this.emit('state', {
       id: instanceId, state: { ...live.state, ...live.pending },
       connections: live.connections, peers: live.peers || [], perConn: live.perConn || {},
+      rtt: live.rttTimes || {},
     });
   }
 })();
@@ -516,6 +560,7 @@ window.__fpBridge = (id, win) => {
         hasRules: !!(model && model.behavior.rules.length),
         state: inst.state, connections: inst.connections,
         peers: inst.peers || [], perConn: inst.perConn || {},
+        rtt: inst.rtt || {},
         attached: inst.attached, pinned: false,
         theme: readSettings().theme || 'dark',
       };
