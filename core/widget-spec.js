@@ -31,7 +31,8 @@ const ROLES = ['provider', 'consumer'];
 // Interactive primitives render as controls when the bound property is
 // writable by this widget's role, and as read-only displays otherwise
 // (except toggle/field, which REQUIRE a writable bind).
-const PRIMITIVES = ['lamp', 'toggle', 'value', 'label', 'field', 'meter', 'options', 'image', 'date', 'stepper', 'split', 'rtt'];
+// Exported so authoring surfaces (the Composer) share the single source of truth.
+export const PRIMITIVES = ['lamp', 'toggle', 'value', 'label', 'field', 'meter', 'options', 'image', 'date', 'stepper', 'split', 'rtt'];
 
 /**
  * Extract the property map from a registry profile JSON (latest version).
@@ -109,6 +110,26 @@ export function validateDefinition(raw, profileJsons) {
     color = String(raw.color).trim();
     if (!/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(color)) {
       e('`color:` must be a hex color like #f5b34c.');
+    }
+  }
+
+  // Optional provenance block (additive, ignored by the runtime): author,
+  // created, composed. Unknown meta keys are tolerated and preserved — the
+  // block is data ABOUT the widget, never behavior.
+  const meta = {};
+  if (raw.meta != null) {
+    if (typeof raw.meta !== 'object' || Array.isArray(raw.meta)) {
+      e('`meta:` must be a mapping (author / created / composed).');
+    } else {
+      for (const k in raw.meta) {
+        const v = raw.meta[k];
+        if (k === 'composed') meta.composed = v === true || v === 'true';
+        else if (v != null && (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')) {
+          const sv = String(v).trim();
+          if (sv.length > 200) { e(`\`meta.${k}:\` is too long (max 200 chars).`); continue; }
+          meta[k] = sv;
+        }
+      }
     }
   }
 
@@ -286,6 +307,21 @@ export function validateDefinition(raw, profileJsons) {
           if (rule.aggregate) { e(`${where}: \`reply:\` cannot combine with \`aggregate:\`.`); return; }
           rule.reply = true;
         }
+        if (r.gate != null || r.is != null || r.else != null) {
+          // Gate clause (gate/is/else — UI v33): the rule only actualizes
+          // while the gate property (merged view — it may live on ANOTHER
+          // capability, e.g. a lease status gating a light) equals `is`.
+          // Closed gate converges `set` to `else` when declared; an undefined
+          // gate property counts as closed (see behavior-engine).
+          if (r.gate == null) { e(`${where}: \`is:\`/\`else:\` are only valid together with \`gate:\`.`); return; }
+          const gate = String(r.gate).trim();
+          if (r.is == null) { e(`${where}: \`gate:\` requires \`is:\` (the value that opens the gate).`); return; }
+          if (gate === set) { e(`${where}: \`gate\` must differ from \`set\` (a rule gated on its own output would oscillate).`); return; }
+          if (!assertReadable(gate, where)) return;
+          rule.gate = gate;
+          rule.is = String(r.is);
+          if (r.else != null) rule.else = String(r.else);
+        }
         behavior.rules.push(rule);
       });
     }
@@ -295,6 +331,61 @@ export function validateDefinition(raw, profileJsons) {
   return {
     ok: true,
     errors: [],
-    model: { id, title, description, icon, color, capabilities, resolve, writable, view, behavior },
+    model: { id, title, description, icon, color, meta, capabilities, resolve, writable, view, behavior },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Canonical serialization order (the Composer's YAML round-trip).
+//
+// orderDefinition(raw) returns a NEW plain object with keys in the canonical
+// authoring order, so `yaml.dump(orderDefinition(raw))` always emits the same
+// shape for the same definition. It re-orders; it NEVER invents or drops:
+// unknown keys — at the top level, on view items, and on behavior rules — are
+// preserved verbatim after the known ones. That forward-compatibility matters:
+// a Composer built against this spec version must round-trip rule clauses it
+// doesn't know yet (e.g. gate/is/else) without destroying them.
+// ---------------------------------------------------------------------------
+
+function orderKeys(obj, known) {
+  const out = {};
+  for (const k of known) if (obj[k] !== undefined) out[k] = obj[k];
+  for (const k in obj) if (!known.includes(k) && obj[k] !== undefined) out[k] = obj[k];
+  return out;
+}
+
+const TOP_ORDER = ['widget', 'title', 'description', 'icon', 'color', 'meta', 'capabilities', 'view', 'behavior'];
+const CAP_ORDER = ['profile', 'role'];
+const VIEW_ORDER = ['type', 'bind', 'text', 'caption', 'on', 'off', 'min', 'max', 'step', 'values', 'send', 'echo'];
+const RULE_ORDER = ['when', 'set', 'map', 'aggregate', 'reply', 'gate', 'is', 'else'];
+const META_ORDER = ['author', 'created', 'composed'];
+const BEHAVIOR_ORDER = ['init', 'rules'];
+
+/** @param {object} raw a parsed widget definition (plain object) */
+export function orderDefinition(raw) {
+  if (!raw || typeof raw !== 'object') return raw;
+  const out = orderKeys(raw, TOP_ORDER);
+  if (out.meta && typeof out.meta === 'object' && !Array.isArray(out.meta)) {
+    out.meta = orderKeys(out.meta, META_ORDER);
+  }
+  if (Array.isArray(out.capabilities)) {
+    out.capabilities = out.capabilities.map((c) =>
+      c && typeof c === 'object' && !Array.isArray(c) ? orderKeys(c, CAP_ORDER) : c
+    );
+  }
+  if (Array.isArray(out.view)) {
+    out.view = out.view.map((v) =>
+      v && typeof v === 'object' && !Array.isArray(v) ? orderKeys(v, VIEW_ORDER) : v
+    );
+  }
+  if (out.behavior && typeof out.behavior === 'object' && !Array.isArray(out.behavior)) {
+    const b = orderKeys(out.behavior, BEHAVIOR_ORDER);
+    if (Array.isArray(b.rules)) {
+      b.rules = b.rules.map((r) =>
+        r && typeof r === 'object' && !Array.isArray(r) ? orderKeys(r, RULE_ORDER) : r
+      );
+    }
+    out.behavior = b;
+  }
+  return out;
 }

@@ -1,0 +1,47 @@
+# Tenant Light — a light inside a leased space. Consumer of BOTH
+# cp:padi.light (it is a bulb) and cp:padi.lease.basic (it is party to a
+# lease). The gating logic is DECLARED here, in the widget, per the project
+# principle that multi-connection/cross-CP semantics are app-level:
+# the light follows its controller ONLY while the landlord-written lease
+# `status` is "Approved". Any other status — or no lease connection at all —
+# forces the light dark, even if a controller says on.
+widget: lease-bulb
+title: Tenant Light
+description: A light in a leased space. Follows its controller only while the lease status is Approved - any other lease state (or no lease at all) forces it off.
+icon: "🏠"
+color: "#4cc36a"
+
+capabilities:
+  - profile: padi.light
+    role: consumer        # the bulb side — watches sOut, reports cState
+  - profile: padi.lease.basic
+    role: consumer        # the tenant side — watches the landlord's status
+
+view:
+  - type: lamp
+    bind: cState          # the ACTUAL light — dark unless the lease allows it
+    on: "1"
+  - type: value
+    bind: status
+    caption: lease status
+  - type: value
+    bind: sOut
+    caption: controller says
+  - type: label
+    bind: sLabel
+    caption: controller
+  - type: label
+    text: lights permitted only while the lease is Approved
+
+behavior:
+  init:
+    cState: "0"
+    cLabel: Tenant Light
+    tenant: Tenant Light  # shows up per-connection on the landlord's side
+  rules:
+    - when: sOut          # do what the controllers say…
+      set: cState
+      aggregate: average  # …averaging disagreeing controllers (bulb.yaml rule)…
+      gate: status        # …but ONLY while the lease status…
+      is: Approved        # …is Approved;
+      else: "0"           # otherwise converge the light to OFF.

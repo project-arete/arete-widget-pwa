@@ -97,6 +97,29 @@ function aggregateInput(rule, state, perConn) {
 export function computeActions(model, state, pending = {}, perConn = {}) {
   const actions = [];
   for (const rule of model.behavior.rules) {
+    // Gate clause (gate/is/else): the rule only actualizes while the gate
+    // property (merged view — it may live on ANOTHER capability, e.g. a lease
+    // status gating a light) equals `is`. Closed gate: converge `set` to
+    // `else` when declared, otherwise leave `set` alone. Because this is a
+    // convergence function re-run on EVERY update, gating is race-free: a
+    // trigger that fires while the gate is closed converges straight back to
+    // `else`, and a gate closing later forces `set` back too. An undefined
+    // gate property (e.g. no lease connection yet) counts as CLOSED.
+    if (rule.gate && state[rule.gate] !== rule.is) {
+      if (rule.else === undefined) continue;
+      if (rule.reply) {
+        for (const connId in perConn) {
+          if (perConn[connId][rule.set] === rule.else) continue;        // converged
+          if (pending[connId + '|' + rule.set] === rule.else) continue; // in flight
+          actions.push({ property: rule.set, value: rule.else, connId });
+        }
+        continue;
+      }
+      if (state[rule.set] === rule.else) continue;   // already converged
+      if (pending[rule.set] === rule.else) continue; // put in flight
+      actions.push({ property: rule.set, value: rule.else });
+      continue;
+    }
     if (rule.reply) {
       // Addressed rule: react per connection, respond on the SAME connection.
       for (const connId in perConn) {

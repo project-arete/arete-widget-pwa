@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="widget.css" />
     <link rel="stylesheet" href="wpwa.css" />
+    <link rel="stylesheet" href="compose.css" />
   </head>
   <body>
     <header class="topbar">
@@ -22,7 +23,7 @@
         <img class="logo" src="logo.png" alt="Arete" />
         <div>
           <h1>Arete Widget</h1>
-          <p class="subtitle">virtual widgets on a CNS/CP realm · <span id="appVersion" title="release version (from package.json)"></span><span id="uiVersion" title="internal UI build stamp"> · PWA v4</span></p>
+          <p class="subtitle">virtual widgets on a CNS/CP realm · <span id="appVersion" title="release version (from package.json)"></span><span id="uiVersion" title="internal UI build stamp"> · PWA v5</span></p>
         </div>
       </div>
       <div class="realm-ind" id="realmInd" hidden>
@@ -42,6 +43,8 @@
               role="tab" aria-selected="false" aria-controls="panel-status">
         Status<span class="tab-badge" id="statusBadge" hidden></span>
       </button>
+      <button class="tab" id="tab-compose" data-panel="panel-compose"
+              role="tab" aria-selected="false" aria-controls="panel-compose">Compose</button>
       <button class="tab" id="tab-config" data-panel="panel-config"
               role="tab" aria-selected="false" aria-controls="panel-config">Config</button>
     </nav>
@@ -60,6 +63,72 @@
           <div id="tileGrid" class="tile-grid"></div>
         </section>
       </div>
+
+      <!-- =========================== COMPOSE =========================== -->
+      <div class="panel" id="panel-compose" role="tabpanel" aria-labelledby="tab-compose" hidden>
+        <div class="compose-bar card">
+          <label class="cmp-draftsel">Draft
+            <select id="cmpDraftSel"></select>
+          </label>
+          <span class="cmp-bar-btns">
+            <button type="button" id="cmpNew" class="ghost">New</button>
+            <button type="button" id="cmpDup" class="ghost" title="Duplicate this draft">Duplicate</button>
+            <button type="button" id="cmpOpenDef" class="ghost" title="Open an existing widget definition on the canvas">Open widget…</button>
+            <button type="button" id="cmpDelete" class="ghost danger" title="Delete this draft (local drafts only — saved widgets are untouched)">Delete</button>
+          </span>
+          <span class="cmp-bar-right">
+            <span id="cmpStatus" class="cmp-status">—</span>
+            <button type="button" id="cmpExport" class="ghost" title="Download the canonical YAML">Export .yaml</button>
+            <button type="button" id="cmpSave" class="primary" title="Save as a local widget (appears in the Add dialog)">Save as widget</button>
+          </span>
+        </div>
+
+        <div class="compose-grid">
+          <!-- left rail: palette + view stack -->
+          <section class="card cmp-col" id="cmpLeft">
+            <h2>Faceplate</h2>
+            <div class="cmp-palette" id="cmpPalette"></div>
+            <div class="cmp-viewlist" id="cmpViewList"></div>
+          </section>
+
+          <!-- center: live preview -->
+          <section class="card cmp-col" id="cmpCenter">
+            <div class="card-head">
+              <h2>Preview</h2>
+              <span class="muted-note" id="cmpPreviewNote">rendered by the real faceplate renderer · mock state</span>
+            </div>
+            <div class="cmp-previewwrap"><iframe id="cmpPreview" title="Widget preview"></iframe></div>
+            <div class="cmp-errors" id="cmpErrors" hidden></div>
+            <details class="cmp-yaml"><summary>YAML</summary>
+              <textarea id="cmpYaml" spellcheck="false"></textarea>
+              <div class="cmp-yaml-btns">
+                <button type="button" id="cmpYamlApply" class="ghost">Apply YAML edits</button>
+                <span class="muted-note">the canvas and this YAML are the same document</span>
+              </div>
+            </details>
+          </section>
+
+          <!-- right rail: identity / capabilities / inspector / rules / mock -->
+          <section class="card cmp-col" id="cmpRight">
+            <details open><summary>Identity</summary>
+              <div class="cmp-form" id="cmpIdentity"></div>
+            </details>
+            <details open><summary>Capabilities <span class="muted-note">(CPs from cp.padi.io)</span></summary>
+              <div id="cmpCaps"></div>
+            </details>
+            <details open><summary>Selected element</summary>
+              <div id="cmpInspector" class="cmp-form"><p class="muted-note">Select an element in the Faceplate list.</p></div>
+            </details>
+            <details><summary>Behavior <span class="muted-note" id="cmpRulesNote"></span></summary>
+              <div id="cmpRules"></div>
+            </details>
+            <details><summary>Mock state</summary>
+              <div id="cmpMock" class="cmp-form"></div>
+            </details>
+          </section>
+        </div>
+      </div>
+
 
       <!-- =========================== STATUS =========================== -->
       <div class="panel" id="panel-status" role="tabpanel" aria-labelledby="tab-status" hidden>
@@ -167,5 +236,6 @@
 
     <script type="module" src="browser-widget-bridge.js"></script>
     <script type="module" src="app.js"></script>
+    <script type="module" src="compose.js"></script>
   </body>
 </html>

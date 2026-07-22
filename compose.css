@@ -1,0 +1,201 @@
+/* compose.css — the Compose tab (widget Composer, Phase 1).
+   Reuses the app's design tokens (styles.css vars) so dark/light theming
+   follows the existing body.light mechanism with no extra work. */
+
+.compose-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.cmp-draftsel { flex-direction: row !important; align-items: center; gap: 8px !important; }
+.cmp-draftsel select { min-width: 180px; }
+.cmp-bar-btns { display: flex; gap: 4px; }
+.cmp-bar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.cmp-status { font-size: 12px; color: var(--muted); }
+.cmp-status.ok { color: #4cc36a; }
+.cmp-status.bad { color: #e2635a; }
+button.danger { color: #e2635a; }
+
+.compose-grid {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.9fr) minmax(300px, 1.35fr) minmax(250px, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 980px) {
+  .compose-grid { grid-template-columns: 1fr; }
+}
+.cmp-col { min-width: 0; }
+
+/* palette */
+.cmp-palette { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.cmp-palette button {
+  font-size: 12px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+}
+.cmp-palette button:hover { border-color: var(--accent); }
+
+/* view stack */
+.cmp-viewlist { display: flex; flex-direction: column; gap: 4px; }
+.cmp-vrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  cursor: pointer;
+  font-size: 13px;
+}
+.cmp-vrow.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.cmp-vrow.dragover { border-style: dashed; border-color: var(--accent); }
+.cmp-vrow .t { font-weight: 600; }
+.cmp-vrow .b { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.cmp-vrow .grip { cursor: grab; color: var(--muted); }
+.cmp-vrow .rowbtns { display: flex; gap: 2px; }
+.cmp-vrow .rowbtns button { padding: 0 5px; font-size: 12px; line-height: 20px; }
+.cmp-vrow.is-split { border-style: dashed; color: var(--muted); justify-content: center; }
+
+/* preview */
+.cmp-previewwrap {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg);
+}
+#cmpPreview { display: block; width: 100%; height: 360px; border: 0; background: transparent; }
+.cmp-errors {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid #e2635a55;
+  border-radius: 8px;
+  color: #e2635a;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+.cmp-yaml { margin-top: 12px; }
+.cmp-yaml summary { cursor: pointer; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+.cmp-yaml textarea {
+  width: 100%;
+  min-height: 220px;
+  margin-top: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.cmp-yaml-btns { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+
+/* right rail */
+#cmpRight details { border-top: 1px solid var(--border); padding: 8px 0; }
+#cmpRight details:first-child { border-top: 0; padding-top: 0; }
+#cmpRight summary {
+  cursor: pointer;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.cmp-form { display: flex; flex-direction: column; gap: 8px; padding: 6px 0; }
+.cmp-form label { font-size: 12px; }
+.cmp-form input, .cmp-form select, .cmp-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+.cmp-idrow { display: grid; grid-template-columns: 1fr 72px 92px; gap: 8px; }
+.cmp-warn { color: #e0a63f; font-size: 12px; }
+.cmp-err { color: #e2635a; font-size: 12px; }
+
+/* capabilities */
+.cmp-cap {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  margin-bottom: 6px;
+  background: var(--panel-2);
+}
+.cmp-cap-head { display: flex; gap: 6px; align-items: center; }
+.cmp-cap-head input { flex: 1; min-width: 0; }
+.cmp-cap-head select { width: 105px; }
+.cmp-cap-props { margin: 6px 0 0; font-size: 11.5px; color: var(--muted); line-height: 1.6; }
+.cmp-cap-props .pn { color: var(--text); font-family: ui-monospace, Menlo, monospace; }
+.cmp-flag {
+  display: inline-block;
+  padding: 0 5px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  font-size: 10px;
+  margin-left: 4px;
+  vertical-align: 1px;
+}
+.cmp-flag.w { color: #4cc36a; border-color: #4cc36a66; }
+.cmp-cap-status { font-size: 11px; margin-left: 2px; }
+.cmp-cap-status.ok { color: #4cc36a; }
+.cmp-cap-status.bad { color: #e2635a; }
+.cmp-cap-status.wait { color: var(--muted); }
+
+/* rules (read-only sentences in Phase 1) */
+.cmp-rule {
+  font-size: 12.5px;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  margin-bottom: 6px;
+  line-height: 1.5;
+}
+.cmp-rule code { font-family: ui-monospace, Menlo, monospace; color: var(--text); }
+.cmp-rule .kw { color: var(--accent); }
+.cmp-rule-extra { color: #e0a63f; }
+
+/* mock state */
+.cmp-mockrow { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.2fr); gap: 8px; align-items: center; }
+.cmp-mockrow .mn { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+
+/* CP registry picker (Phase 2) */
+.cmp-picker {
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 8px;
+  background: var(--panel-2);
+  margin-bottom: 6px;
+}
+.cmp-pk-head { display: flex; gap: 6px; align-items: center; }
+.cmp-pk-head input { flex: 1; min-width: 0; }
+.cmp-pk-list { max-height: 300px; overflow-y: auto; margin-top: 8px; }
+.cmp-pk-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 5px 7px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12.5px;
+}
+.cmp-pk-row:hover { background: var(--panel); }
+.cmp-pk-row.on { background: var(--panel); box-shadow: 0 0 0 1px var(--accent) inset; }
+.cmp-pk-row .pn { font-family: ui-monospace, Menlo, monospace; color: var(--text); }
+.cmp-pk-row .pt { color: var(--muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmp-pk-row .pc { color: var(--muted); font-size: 11px; }
+.cmp-pk-prev {
+  margin: 2px 4px 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.cmp-pk-add { display: flex; gap: 8px; margin-top: 8px; }
+.cmp-pk-add button { font-size: 12px; padding: 4px 10px; }

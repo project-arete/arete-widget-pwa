@@ -1,5 +1,5 @@
 // sw.js — Arete Widget PWA service worker (deterministic updates).
-const VERSION = 'arete-widget-pwa-v4';
+const VERSION = 'arete-widget-pwa-v5';
 const ASSETS = [
   "./",
   "./index.html",
@@ -19,8 +19,13 @@ const ASSETS = [
   "./icon-192.png",
   "./icon-512.png",
   "./manifest.webmanifest",
+  "./compose.css",
+  "./compose.js",
+  "./compose-bridge.js",
+  "./compose-fp-bridge.js",
   "./widgets/manifest.json",
   "./widgets/bulb.yaml",
+  "./widgets/lease-bulb.yaml",
   "./widgets/lease-landlord.yaml",
   "./widgets/lease-tenant.yaml",
   "./widgets/oadr-controller.yaml",

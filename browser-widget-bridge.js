@@ -13,9 +13,11 @@
 
 import { validateDefinition } from './core/widget-spec.js';
 import { deriveState, computeActions, reconcilePending } from './core/behavior-engine.js';
+import { composeCheck, composeSimulate, slimProfileIndex } from './compose-bridge.js';
 import yaml from './js-yaml.mjs';
 
 const LS_SETTINGS = 'arete-widget-settings';
+const LS_LOCAL = 'arete-widget-local-widgets'; // id -> YAML text (the browser's "local" source)
 const LS_INSTANCES = 'arete-widget-instances';
 const LS_IDENTITY = 'arete-widget-system';
 const LIBRARY_DEFAULT = 'https://project-arete.github.io/widget-library';
@@ -241,7 +243,7 @@ const manager = new (class extends Emitter {
       for (const p of wanted) profiles[p] = await fetchProfile(p);
       const res = validateDefinition(raw, profiles);
       const id = res.model ? res.model.id : name.replace(/\.ya?ml$/i, '');
-      out.push({ id, file: name, source, ok: res.ok, errors: res.errors, title: res.model ? res.model.title : id, description: res.model ? res.model.description : '', model: res.model });
+      out.push({ id, file: name, source, text, ok: res.ok, errors: res.errors, title: res.model ? res.model.title : id, description: res.model ? res.model.description : '', model: res.model });
     }
     return out;
   }
@@ -272,6 +274,16 @@ const manager = new (class extends Emitter {
         this.#log('info', `Widget library refreshed — ${n} definition(s) from ${base}.`);
       } catch (e) { this.#log('warn', `Widget library refresh failed (${e.message || e}) — using bundled definitions.`); }
     }
+    // local (Composer-saved, localStorage) — highest precedence, like the
+    // desktop app's userData/widgets folder.
+    const localMap = readJSON(LS_LOCAL, {});
+    const localFiles = Object.entries(localMap).map(([id, text]) => ({ name: id + '.yaml', source: 'local', text }));
+    if (localFiles.length) {
+      for (const d of await this.#loadSource(localFiles)) {
+        if (defs.has(d.id)) this.#log('info', `Widget "${d.id}": local definition overrides the ${defs.get(d.id).source} one.`);
+        defs.set(d.id, d);
+      }
+    }
     this.#defs = defs;
     const bad = [...defs.values()].filter((d) => !d.ok);
     this.#log('info', `Loaded ${defs.size} widget definition(s)` + (bad.length ? ` — ${bad.length} invalid.` : '.'));
@@ -289,6 +301,7 @@ const manager = new (class extends Emitter {
     }));
   }
   getModel(widgetId) { const d = this.#defs.get(widgetId); return d && d.ok ? d.model : null; }
+  getDefinitionText(widgetId) { const d = this.#defs.get(widgetId); return d ? { id: d.id, source: d.source, text: d.text || '' } : null; }
 
   listInstances() {
     return this.#instances.map((inst) => {
@@ -493,7 +506,9 @@ const manager = new (class extends Emitter {
     if (!live) throw new Error('Widget is not attached (not connected).');
     const r = model.resolve[prop];
     if (!r || !model.writable.includes(prop)) throw new Error(`Property "${prop}" is not writable by this widget.`);
-    if (!(live.peers || []).some((p) => p.connId === connId)) throw new Error('Unknown connection for this widget.');
+    const peer = (live.peers || []).find((p) => p.connId === connId);
+    if (!peer) throw new Error('Unknown connection for this widget.');
+    if (peer.profile !== r.profile) throw new Error(`Connection ${connId} belongs to ${peer.profile}, not ${r.profile} — refusing the misaddressed write.`);
     const key = `cns/${inst.systemId}/nodes/${inst.nodeId}/contexts/${inst.contextId}/${r.role}/${r.profile}/connections/${connId}/properties/${prop}`;
     this.#rttStamp(inst, model, prop, value, connId); // clock starts at the write
     await service.putKey(key, String(value));
@@ -557,6 +572,9 @@ window.__fpBridge = (id, win) => {
         icon: model ? model.icon || '' : '', color: model ? model.color || '' : '',
         view: model ? model.view : [], writable: model ? model.writable : [],
         localOnly: model ? model.writable.filter((p) => model.resolve[p] && !model.resolve[p].propagate) : [],
+        bindProfile: model
+          ? Object.fromEntries(Object.entries(model.resolve).filter(([, r]) => r !== 'AMBIGUOUS').map(([prop, r]) => [prop, r.profile]))
+          : {},
         hasRules: !!(model && model.behavior.rules.length),
         state: inst.state, connections: inst.connections,
         peers: inst.peers || [], perConn: inst.perConn || {},
@@ -694,6 +712,49 @@ window.arete = {
   async widgetRemove(id) { closeFaceplate(id); manager.removeInstance(id); },
   async widgetRemoveAll() { for (const id of [...overlays.keys()]) closeFaceplate(id); return manager.removeAllInstances(); },
   async widgetOpen(id) { openFaceplate(id); },
+
+  // ---- composer (Compose tab — browser implementations of compose:*) ----
+  async composeCheck(draft) { return composeCheck(draft, fetchProfile); },
+  async composeSimulate({ model, state }) { return composeSimulate(model, state); },
+  async composeSaveLocal({ yamlText, overwrite }) {
+    let raw;
+    try { raw = yaml.load(yamlText); } catch (err) { return { ok: false, error: 'YAML parse error: ' + (err.message || err) }; }
+    const id = raw && typeof raw.widget === 'string' ? raw.widget.trim() : '';
+    if (!id) return { ok: false, error: 'The definition has no `widget:` id.' };
+    const existing = manager.listDefinitions().find((d) => d.id === id);
+    if (existing && existing.source !== 'local') {
+      return { ok: false, error: `Widget id "${id}" already exists in the ${existing.source} source — a local copy would shadow it. Pick a different id.` };
+    }
+    if (existing && existing.source === 'local' && !overwrite) {
+      return { ok: false, error: `Local widget "${id}" already exists.`, exists: true };
+    }
+    const map = readJSON(LS_LOCAL, {});
+    map[id] = yamlText;
+    writeJSON(LS_LOCAL, map);
+    await manager.loadDefinitions();
+    const def = manager.listDefinitions().find((d) => d.id === id);
+    return { ok: !!(def && def.ok), errors: def ? def.errors : [], file: id + '.yaml' };
+  },
+  async composeReadDef(id) { return manager.getDefinitionText(id); },
+  async composeFaceplateHtml() {
+    try { return await fetch('faceplate.html').then((r) => r.text()); } catch (_) { return null; }
+  },
+  async composeProfileIndex(refresh) {
+    if (!window.__cpIndex || refresh) {
+      try {
+        const url = 'https://cp.padi.io/profiles' + (refresh ? '?cb=' + Date.now() : '');
+        const res = await fetch(url, { headers: { accept: 'application/json' } });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const list = await res.json();
+        if (!Array.isArray(list)) throw new Error('not a profile list');
+        window.__cpIndex = list;
+        for (const p of list) if (p && p.name) profileCache.set(p.name, p);
+      } catch (e) {
+        return { ok: !!window.__cpIndex, error: String(e.message || e), profiles: slimProfileIndex(window.__cpIndex || []) };
+      }
+    }
+    return { ok: true, profiles: slimProfileIndex(window.__cpIndex) };
+  },
 
   onKeys(cb) { bus.on('keys', cb); return () => {}; },
   onLog(cb) { bus.on('log', cb); return () => {}; },

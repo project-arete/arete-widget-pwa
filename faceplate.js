@@ -14,7 +14,9 @@ let state = {};             // the EFFECTIVE view (merged, or one connection's)
 let merged = {};            // merged state as pushed by main
 let perConn = {};           // connId -> that connection's property map
 let peers = [];             // [{connId, system, node, profile}]
-let selConn = 'all';        // 'all' | connId — which connection the read side shows
+let selByProfile = {};      // profile -> 'all' | connId (independent pill groups per CP)
+let groupsList = [];        // [{profile, peers:[...]}] — only CPs with 2+ OWN connections
+let bindProfile = {};       // bind -> owning profile (from the bootstrap payload)
 let mixedMap = {};          // bind -> [distinct values] when peers disagree (All view)
 let rtts = {};              // echo prop -> { connId: ms } (round-trip times, app-measured)
 let peerWritten = new Set(); // binds NOT writable by this widget = written by peers
@@ -28,11 +30,44 @@ function chip(connections, attached) {
   else { el.className = 'chip wait'; el.textContent = 'awaiting broker'; }
 }
 
+// A pill group is only meaningful for a CP with 2+ of ITS OWN connections —
+// within a single-connection CP there is nothing to disambiguate (the merged
+// view IS that connection, and a write can only go one place). This is also
+// what keeps multi-CP widgets like the Tenant Light strip-free.
+function rebuildGroups() {
+  const by = new Map();
+  for (const p of peers) {
+    if (!by.has(p.profile)) by.set(p.profile, []);
+    by.get(p.profile).push(p);
+  }
+  groupsList = [...by.entries()]
+    .filter(([, list]) => list.length >= 2)
+    .map(([profile, list]) => ({ profile, peers: list }));
+  for (const g of groupsList) {
+    const sel = selByProfile[g.profile];
+    if (sel && sel !== 'all' && !g.peers.some((p) => p.connId === sel)) delete selByProfile[g.profile];
+  }
+}
+const selFor = (profile) => selByProfile[profile] || 'all';
+// The group a bound property belongs to. Falls back to the single rendered
+// group when the payload carries no bind->profile map (older main process).
+function groupFor(bind) {
+  const prof = bindProfile[bind];
+  if (prof) return groupsList.find((g) => g.profile === prof) || null;
+  return groupsList.length === 1 ? groupsList[0] : null;
+}
+const shortProfile = (name) => {
+  const parts = String(name).split('.');
+  return parts.length > 1 ? parts.slice(1).join('.') : String(name);
+};
+
 function peersLine() {
   const el = $('fpPeers');
-  // With the peer strip visible (2+ connections) the footer line is redundant.
-  if (!peers.length || peers.length >= 2) { el.textContent = ''; return; }
-  el.textContent = `bound to ${peers[0].system} · ${peers[0].node}`;
+  // With pill groups visible the footer line is redundant.
+  if (!peers.length || groupsList.length) { el.textContent = ''; return; }
+  el.textContent = peers.length === 1
+    ? `bound to ${peers[0].system} · ${peers[0].node}`
+    : 'bound to ' + peers.map((p) => p.node).join(' · ');
 }
 
 // The peer strip: appears only at 2+ connections. "All" aggregates; a peer
@@ -42,8 +77,9 @@ function peersLine() {
 let stripShown = false;
 let stripEverRendered = false; // first render sets the baseline — no resize
 function renderStrip() {
+  rebuildGroups();
   const strip = $('fpStrip');
-  if (peers.length < 2) {
+  if (!groupsList.length) {
     if (stripShown && stripEverRendered) {
       const h = strip.offsetHeight;
       strip.hidden = true;
@@ -53,10 +89,8 @@ function renderStrip() {
     }
     stripShown = false;
     stripEverRendered = true;
-    if (selConn !== 'all') { selConn = 'all'; }
     return;
   }
-  if (selConn !== 'all' && !peers.some((p) => p.connId === selConn)) selConn = 'all';
   const wasShown = stripShown;
   strip.hidden = false;
   strip.innerHTML = '';
@@ -68,45 +102,60 @@ function renderStrip() {
     });
   }
   stripEverRendered = true;
-  const mk = (id, label, title) => {
+  const mk = (profile, id, label, title) => {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'peer' + (selConn === id ? ' on' : '');
+    b.className = 'peer' + (selFor(profile) === id ? ' on' : '');
     b.textContent = label;
     if (title) b.title = title;
     b.addEventListener('click', () => {
-      selConn = id;
+      selByProfile[profile] = id;
       renderStrip();
       computeView();
       for (const fn of updaters) fn(state);
     });
     return b;
   };
-  strip.appendChild(mk('all', `All · ${peers.length}`, 'aggregate view of every connection'));
-  // Pill label = NODE name (the widget/peer itself) — system names are often
-  // identical across peers (e.g. many widgets under one system). Full detail
-  // stays in the tooltip.
-  for (const p of peers) strip.appendChild(mk(p.connId, p.node, `${p.system} · ${p.node} (${p.profile})`));
+  // One compact group per multi-connection CP, all on one wrapping row.
+  // Selection is INDEPENDENT per group; reads/writes of a property resolve
+  // against its OWN CP's selection only. Pill label = NODE name (system
+  // names are often identical across peers); full detail in the tooltip.
+  for (const g of groupsList) {
+    const grp = el('span', 'peer-group');
+    if (groupsList.length > 1) {
+      const tag = el('span', 'gtag', shortProfile(g.profile));
+      tag.title = g.profile;
+      grp.appendChild(tag);
+    }
+    grp.appendChild(mk(g.profile, 'all', `All · ${g.peers.length}`, `aggregate view of every ${g.profile} connection`));
+    for (const p of g.peers) grp.appendChild(mk(g.profile, p.connId, p.node, `${p.system} · ${p.node} (${p.profile})`));
+    strip.appendChild(grp);
+  }
 }
 
 // Build the effective state for the current selection, and the mixed map for
 // the All view (peer-written props where connections disagree).
 function computeView() {
   mixedMap = {};
-  if (selConn !== 'all' && perConn[selConn]) {
-    state = { ...merged, ...perConn[selConn] };
-    return;
+  state = { ...merged };
+  // Overlay each group's selected connection. Connection property maps are
+  // naturally scoped to their capability, so overlaying a lease connection
+  // can never disturb light properties.
+  for (const g of groupsList) {
+    const sel = selFor(g.profile);
+    if (sel !== 'all' && perConn[sel]) Object.assign(state, perConn[sel]);
   }
-  state = merged;
-  if (peers.length >= 2) {
-    for (const bind of allBinds) {
-      const vals = new Set();
-      for (const p of peers) {
-        const pc = perConn[p.connId];
-        if (pc && pc[bind] !== undefined) vals.add(pc[bind]);
-      }
-      if (vals.size > 1) mixedMap[bind] = [...vals];
+  // Mixed detection runs WITHIN a property's own CP group — disagreement
+  // between unrelated CPs' connections is not a conflict.
+  for (const bind of allBinds) {
+    const g = groupFor(bind);
+    if (!g || selFor(g.profile) !== 'all') continue;
+    const vals = new Set();
+    for (const p of g.peers) {
+      const pc = perConn[p.connId];
+      if (pc && pc[bind] !== undefined) vals.add(pc[bind]);
     }
+    if (vals.size > 1) mixedMap[bind] = [...vals];
   }
 }
 
@@ -154,8 +203,9 @@ function watch(prim, fn) {
 
 // Breakdown tooltip for a mixed value: '2× "1" · 1× "0"'.
 function mixedTitle(prim) {
+  const g = groupFor(prim.bind);
   const counts = {};
-  for (const p of peers) {
+  for (const p of (g ? g.peers : peers)) {
     const pc = perConn[p.connId];
     const v = pc ? pc[prim.bind] : undefined;
     if (v !== undefined) counts[v] = (counts[v] || 0) + 1;
@@ -164,10 +214,13 @@ function mixedTitle(prim) {
 }
 
 function act(prim, value) {
-  // A selected peer chip scopes the write to that ONE connection (the control
+  // A selected peer pill scopes the write to that ONE connection (the control
   // plane mirrors connection properties 1:1); All = capability broadcast.
-  const conn = selConn !== 'all' ? selConn : null;
-  window.faceplate.action(prim.bind, String(value), conn).catch(() => {});
+  // The selection consulted is the one on the PROPERTY'S OWN CP group — a
+  // pill selected on some other CP's group can never misaddress this write.
+  const g = groupFor(prim.bind);
+  const sel = g ? selFor(g.profile) : 'all';
+  window.faceplate.action(prim.bind, String(value), sel !== 'all' ? sel : null).catch(() => {});
 }
 
 const BUILDERS = {
@@ -377,10 +430,14 @@ const BUILDERS = {
       const times = rtts[prim.echo] || {};
       let text = '—';
       let title = '';
-      if (selConn !== 'all') {
-        text = times[selConn] !== undefined ? `${times[selConn]} ms` : '—';
+      const g = groupFor(prim.echo);
+      const scope = g ? g.peers
+        : bindProfile[prim.echo] ? peers.filter((p) => p.profile === bindProfile[prim.echo]) : peers;
+      const sel = g ? selFor(g.profile) : 'all';
+      if (sel !== 'all') {
+        text = times[sel] !== undefined ? `${times[sel]} ms` : '—';
       } else {
-        const measured = peers.filter((p) => times[p.connId] !== undefined);
+        const measured = scope.filter((p) => times[p.connId] !== undefined);
         if (measured.length === 1) {
           text = `${times[measured[0].connId]} ms`;
           title = `${measured[0].node}: ${times[measured[0].connId]} ms`;
@@ -461,6 +518,7 @@ async function init() {
     fp.view.filter((v) => v.bind && !fp.writable.includes(v.bind)).map((v) => v.bind)
   );
   allBinds = new Set(fp.view.filter((v) => v.bind).map((v) => v.bind));
+  bindProfile = fp.bindProfile || {};
   peers = fp.peers || [];
   build();
   chip(fp.connections, fp.attached);

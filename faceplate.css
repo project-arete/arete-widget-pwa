@@ -233,3 +233,14 @@ main.cols .fp-col:first-child { border-right: 1px dashed var(--border); padding-
 .step-btn:hover:not(:disabled) { border-color: var(--fp-accent, var(--accent)); }
 .step-btn:disabled { opacity: .45; cursor: default; }
 .step-num { font-family: var(--mono); font-size: 17px; min-width: 56px; text-align: center; }
+
+/* per-CP pill groups (UI v37): one wrapping row, a group per multi-connection CP */
+.peer-group { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; }
+.peer-group .gtag {
+  font-size: 10px;
+  color: var(--muted, #9aa6b4);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-right: 2px;
+  white-space: nowrap;
+}
