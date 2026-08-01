@@ -221,9 +221,18 @@ const service = {
     if (!client || !client.isOpen()) throw new Error('Not connected.');
     if (typeof nodeId !== 'string' || !nodeId) throw new Error('Refusing to retract without a node id.');
 
-    const prefix = `cns/${systemId()}/nodes/${nodeId}`;
+    const sysId = systemId();
+    const prefix = `cns/${sysId}/nodes/${nodeId}`;
     const count = () => Object.keys(client.keys || {})
       .filter((k) => k === prefix || k.startsWith(prefix + '/')).length;
+
+    // Absence from the key cache is only evidence if the cache is ALIVE. It
+    // can be blanked by an update carrying an empty object (the merge treats
+    // that as a reset), and a wiped cache looks exactly like "nothing to
+    // retract" — which would report success while the node lives on.
+    if (!client.keys || client.keys[`cns/${sysId}/name`] === undefined) {
+      throw new Error('Realm state is not available right now — refusing to assume the node is gone.');
+    }
 
     const before = count();
 
