@@ -508,7 +508,7 @@ function renderRemoveAll() {
     ? `<button type="button" class="danger" data-ra-arm>Remove all…</button>
        <div class="tile-menu confirm" data-ra-panel>
         <div class="menu-q">Remove all ${instances.length} widget${instances.length === 1 ? '' : 's'}?</div>
-        <div class="menu-note">Removes every widget from this app and closes their faceplates. The realm nodes are left as-is.</div>
+        <div class="menu-note">Removes every widget from this app, closes their faceplates, and retracts their nodes from the realm.</div>
         <div class="menu-row">
           <button type="button" data-ra-cancel>Cancel</button>
           <button type="button" class="danger" data-ra-yes>Remove all</button>
@@ -567,7 +567,7 @@ function renderTiles() {
       menu = removeArmed === i.id
         ? `<div class="tile-menu confirm" data-menu-panel>
             <div class="menu-q">Remove “${esc(i.name)}”?</div>
-            <div class="menu-note">Removes it from this app. The realm node is left as-is.</div>
+            <div class="menu-note">Removes it from this app and retracts its node from the realm, so its capabilities stop existing and any connections are severed.</div>
             <div class="menu-row">
               <button type="button" data-remove-cancel>Cancel</button>
               <button type="button" class="danger" data-remove-yes="${esc(i.id)}">Remove</button>
@@ -605,7 +605,13 @@ function renderTiles() {
 els.removeAllWrap.addEventListener('click', (e) => {
   if (e.target.closest('[data-ra-yes]')) {
     removeAllArmed = false;
-    window.arete.widgetRemoveAll(); // 'instances' push re-renders the grid
+    // 'instances' push re-renders the grid; anything whose retraction failed
+    // is kept, so report that rather than leaving it looking like a no-op.
+    window.arete.widgetRemoveAll().then((r) => {
+      if (r && r.kept) {
+        alert(`${r.kept} widget(s) could not be removed — their realm nodes could not be retracted, so they were kept. See the log for details.`);
+      }
+    });
     return;
   }
   if (e.target.closest('[data-ra-cancel]')) {
@@ -650,7 +656,13 @@ els.tileGrid.addEventListener('click', (e) => {
     const id = yes.dataset.removeYes;
     removeArmed = null;
     menuFor = null;
-    window.arete.widgetRemove(id);
+    // Removal retracts the realm node; if that fails the widget is kept, so
+    // say so rather than letting the grid silently not change.
+    window.arete.widgetRemove(id).then((r) => {
+      if (r && r.ok === false) {
+        alert(`Could not remove this widget:\n\n${r.error}\n\nIt is still here, and its realm node still exists.`);
+      }
+    });
     return;
   }
   if (e.target.closest('[data-plus]')) {

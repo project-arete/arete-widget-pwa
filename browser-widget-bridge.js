@@ -210,6 +210,36 @@ const service = {
     if (typeof key !== 'string' || !key.startsWith('cns/')) throw new Error('Refusing to write a non-cns key.');
     return client.put(key, String(value));
   },
+
+  // Retract a node from the realm: remove its subtree, so its declarations
+  // stop existing and the substrate severs any connections that depended on
+  // them. Counterpart of instantiate(). Port of AreteService.retractNode.
+  //
+  // Scoped to THIS system's own subtree by construction — we never delete
+  // another system's data, even though the wire would currently allow it.
+  async retractNode(nodeId) {
+    if (!client || !client.isOpen()) throw new Error('Not connected.');
+    if (typeof nodeId !== 'string' || !nodeId) throw new Error('Refusing to retract without a node id.');
+
+    const prefix = `cns/${systemId()}/nodes/${nodeId}`;
+    const count = () => Object.keys(client.keys || {})
+      .filter((k) => k === prefix || k.startsWith(prefix + '/')).length;
+
+    const before = count();
+
+    // 'purge' removes a whole subtree. The SDK swallows server-side errors, so
+    // the outcome is VERIFIED against the key cache rather than trusted.
+    await client.command('purge', prefix);
+
+    if (before === 0) return 0;
+
+    const started = Date.now();
+    while (Date.now() - started < 6000) {
+      if (count() === 0) return before;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    throw new Error('The realm did not confirm the retraction.');
+  },
 };
 
 // ------------------------------------------------------------ widget manager
@@ -373,21 +403,59 @@ const manager = new (class extends Emitter {
     return this.getInstance(id);
   }
 
-  removeInstance(id) {
+  /**
+   * Remove a widget: retract its node from the realm, then forget it locally.
+   *
+   * The realm half happens FIRST and deliberately: if retraction fails we keep
+   * the instance, so the app never loses the only record of a node that still
+   * exists on the realm.
+   */
+  async removeInstance(id) {
     const inst = this.#instances.find((i) => i.id === id);
+    if (!inst) return;
+
+    if (inst.nodeId) {
+      try {
+        await service.retractNode(inst.nodeId);
+      } catch (e) {
+        this.#log('error', `Could not remove "${inst.name}": ${e.message || e} — the widget was kept.`);
+        this.emit('instances', this.listInstances());
+        throw e;
+      }
+    }
+
     this.#live.delete(id);
     this.#instances = this.#instances.filter((i) => i.id !== id);
     this.#save();
-    if (inst) this.#log('info', `Widget "${inst.name}" removed from this app (realm node not deleted).`);
+    this.#log('info', `Widget "${inst.name}" removed and its realm node retracted.`);
     this.emit('instances', this.listInstances());
   }
 
-  removeAllInstances() {
-    const count = this.#instances.length;
-    this.#live.clear(); this.#instances = []; this.#save();
-    if (count) this.#log('info', `All ${count} widget(s) removed from this app (realm nodes not deleted).`);
+  /** Remove every instance, retracting each node. Failures are kept. */
+  async removeAllInstances() {
+    const all = [...this.#instances];
+    const kept = [];
+    let removed = 0;
+
+    for (const inst of all) {
+      if (inst.nodeId) {
+        try {
+          await service.retractNode(inst.nodeId);
+        } catch (e) {
+          this.#log('error', `Could not remove "${inst.name}": ${e.message || e} — the widget was kept.`);
+          kept.push(inst);
+          continue;
+        }
+      }
+      this.#live.delete(inst.id);
+      removed++;
+    }
+
+    this.#instances = kept;
+    this.#save();
+    if (removed) this.#log('info', `${removed} widget(s) removed and their realm nodes retracted.`);
     this.emit('instances', this.listInstances());
-    return count;
+    return removed;
   }
 
   async #attach(inst) {
@@ -709,8 +777,23 @@ window.arete = {
   async widgetInstances() { return manager.listInstances(); },
   async widgetAdd(spec) { return manager.addInstance(spec); },
   async widgetUpdate(spec) { return manager.updateInstance(spec); },
-  async widgetRemove(id) { closeFaceplate(id); manager.removeInstance(id); },
-  async widgetRemoveAll() { for (const id of [...overlays.keys()]) closeFaceplate(id); return manager.removeAllInstances(); },
+  // Removal retracts the realm node first; a failure keeps the widget, so the
+  // caller is told rather than left staring at an unchanged grid.
+  async widgetRemove(id) {
+    closeFaceplate(id);
+    try {
+      await manager.removeInstance(id);
+    } catch (e) {
+      return { ok: false, error: e.message || String(e) };
+    }
+    return { ok: true };
+  },
+  async widgetRemoveAll() {
+    for (const id of [...overlays.keys()]) closeFaceplate(id);
+    const count = await manager.removeAllInstances();
+    const kept = manager.listInstances().length;
+    return { ok: kept === 0, count, kept };
+  },
   async widgetOpen(id) { openFaceplate(id); },
 
   // ---- composer (Compose tab — browser implementations of compose:*) ----
